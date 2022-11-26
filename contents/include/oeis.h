@@ -19,7 +19,7 @@ struct OEISGenerator {
 	std::deque<int> tasks;
 	int num_thread_running;
 	std::vector<std::pair<int, int> > thread_limits;
-	template<typename Sol> void thread_func(int thread_index) {
+	template<typename Sol> void thread_func(int thread_index, Sol *sol) {
 		(void) thread_index;
 		while (1) {
 			bool exit = false;
@@ -34,7 +34,7 @@ struct OEISGenerator {
 				} else exit = true;
 			}
 			if (exit) break;
-			auto res = Sol().template calc<cpp_int>(next_n);
+			auto res = sol->template calc<cpp_int>(next_n);
 			{
 				std::lock_guard<std::mutex> locking(thread_lock);
 				result[next_n] = res;
@@ -45,20 +45,38 @@ struct OEISGenerator {
 		// std::cerr << "Thread #" << thread_index << " exit" << std::endl;
 	}
 	
-	template<typename Sol> auto run_multithread(int n_min, int n_max) -> decltype(Sol().template calc<cpp_int>(0), void()) {
+	struct general_tag {};
+	struct special_tag : general_tag {};
+	template<typename> struct int_ { typedef int type; };
+	
+	template<typename Sol, typename int_<decltype(Sol(0, 0))>::type = 0> Sol get_default_sol_(int n_min, int n_max, special_tag) { return Sol(n_min, n_max); }
+	template<typename Sol> Sol get_default_sol_(int, int, general_tag) { return Sol(); }
+	template<typename Sol> Sol get_default_sol(int n_min, int n_max) { return get_default_sol_<Sol>(n_min, n_max, special_tag()); }
+	
+	
+	template<typename Sol> auto run_multithread(int n_min, int n_max, Sol &sol) -> decltype(std::declval<Sol>().template calc<cpp_int>(0), void()) {
 		for (int n = n_min; n <= n_max; n++) tasks.push_back(n);
 		result.resize(n_max + 1);
 		
 		num_thread_running = thread_num;
 		std::vector<std::thread> threads;
-		for (int i = 0; i < thread_num; i++) threads.push_back(std::thread(thread_func<Sol>, this, i));
+		for (int i = 0; i < thread_num; i++) threads.push_back(std::thread(&OEISGenerator::thread_func<Sol>, this, i, &sol));
 		for (auto &thread : threads) thread.join();
 	}
-	template<typename Sol> auto run_multithread(int n_min, int n_max) -> decltype(Sol().template calc_all<cpp_int>(0), void()) {
+	template<typename Sol> auto run_multithread(int n_min, int n_max, Sol &sol) -> decltype(std::declval<Sol>().template calc_all<cpp_int>(0), void()) {
 		(void) n_min;
 		(void) n_max;
-		result = Sol().template calc_all<cpp_int>(n_max);
+		result = sol.template calc_all<cpp_int>(n_max);
 	}
+	template<typename Sol> auto is_solver_individual() -> decltype(std::declval<Sol>().template calc<cpp_int>(0), bool()) { return true; }
+	template<typename Sol> auto is_solver_individual() -> decltype(std::declval<Sol>().template calc_all<cpp_int>(0), bool()) { return false; }
+	
+	// finalize function
+	template<typename Sol, typename int_<decltype(std::declval<Sol>().finalize(0, 0, std::declval<std::vector<cpp_int> &>()))>::type = 0> void finalize_(int n_min, int n_max, Sol &sol, special_tag) {
+		sol.finalize(n_min, n_max, result);
+	}
+	template<typename Sol> void finalize_(int, int, Sol &, general_tag) {}
+	template<typename Sol> void finalize(int n_min, int n_max, Sol &sol) { finalize_<Sol>(n_min, n_max, sol, special_tag()); }
 
 	struct GenOption {
 		std::string outfile_name;
@@ -79,13 +97,15 @@ struct OEISGenerator {
 		this->thread_limits = opt.thread_limits;
 		
 		auto t0 = Timer::get();
-		run_multithread<Sol>(opt.n_min, opt.n_max);
+		Sol sol = get_default_sol<Sol>(opt.n_min, opt.n_max);
+		run_multithread(opt.n_min, opt.n_max, sol);
+		finalize<Sol>(opt.n_min, opt.n_max, sol);
 		auto t1 = Timer::get();
 		
 		std::string time_str = Timer::diff_str(t0, t1);
 		std::string date_str = Timer::get_date_str();
 		if (date_str.size()) date_str = date_str.substr(0, date_str.size() - 1); // ignore the last linebreak
-		std::string thread_str = std::to_string(thread_num) + " threads";
+		std::string thread_str = std::to_string(is_solver_individual<Sol>() ? thread_num : 1) + " threads";
 		if (thread_limits.size()) {
 			thread_str += " (limit";
 			for (auto limit : thread_limits) thread_str += " (" + std::to_string(limit.first) + ", " + std::to_string(limit.second) + ")";
