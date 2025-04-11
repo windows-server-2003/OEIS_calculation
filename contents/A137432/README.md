@@ -1,7 +1,7 @@
 ## Polynomial-time algorithm for the calculation of OEIS A137432
 The sequence [A137432](http://oeis.org/A137432) represents the number of ways to place $n^2$ non-attacking kings on a $2n \times 2n$ cylindrical chessboard.  
 Previously, it had the `hard` tag, indicating that the calculation of the sequence is hard, and only the first 31 terms were calculated.  
-This document explains an algorithm calculating the $n$-th term of the sequence in $O(n^4)$ multiprecision operations.  
+This document explains an algorithm that calculates the $n$-th term of the sequence in $O(n^4)$ multiprecision operations.  
 
 ## Implementation
 An implementation of the algorithm in C++ is provided as `main.cpp` in the same directory. libboost is needed to compile it.
@@ -32,7 +32,7 @@ Also, let $s_{i, j}, t_{i, j}$ denote the row, column offset of king $(i, j)$, r
 ## 2. Transform to a sequence counting problem
 Considering the horizontal adjacency, we get $s_{i, j_1} = s_{i, j_2}$ for any $i, j_1, j_2$. (Remember the board is connected cyclically along the horizontal axis)  
 We denote $b_i = s_{i, 0} = s_{i, 1} = \cdots = s_{i, n - 1}$. $b_i$ is either $0$ or $1$.  
-Considering the vertical adjacency, we get $(0 \le ) \, t_{0, j} \le t_{1, j} \le \cdots \le t_{n - 1, j} \, (\le 1)$ for every $j$.  
+Considering the vertical adjacency, we get $(0 \le ) \\, t_{0, j} \le t_{1, j} \le \cdots \le t_{n - 1, j} \\, (\le 1)$ for every $j$.  
 We denote $c_j = \\#\\{ i \vert t_{i, j} = 0\\}$. $0 \le c_j \le n$ holds for every $j$, and $t_{i, j}$ equals $0$ if $i \lt c_j$ and $1$ if $i \ge c_j$.  
 
 Considering the orthogonal adjacency, we get the following conditions on $b_i, c_j$ as the necessary and sufficcient condition.  
@@ -51,8 +51,8 @@ The inequalities along the lines represent the condition on $b$ imposed by the t
 
 We can see that 
 
- - $(b_i, b_{i + 1})$ can be $(0, 1)$ if and only if all the line passing the $(i + 1)$-th vertical line from the right to left have one or more vertices on the vertical line.
- - $(b_i, b_{i + 1})$ can be $(1, 0)$ if and only if all the line passing the $(i + 1)$-th vertical line from the left to right have one or more vertices on the vertical line.
+ - $(b_i, b_{i + 1})$ can be $(0, 1)$ iff every horizontal line crossing the $(i + 1)$-th vertical line from the right to left has one or more vertices on the vertical line.
+ - $(b_i, b_{i + 1})$ can be $(1, 0)$ iff every horizontal line crossing the $(i + 1)$-th vertical line from the left to right has one or more vertices on the vertical line.
  - $(b_i, b_{i + 1})$ can always be $(0, 0)$ and $(1, 1)$
 
 From this, we can do a DP(dynamic programming), scanning the vertical lines from the left to right and managing the number of lines crossing the current vertical line.
@@ -60,21 +60,21 @@ We have to hold the following values as the state of DP:
 
  - $i$, indicating we are currently at the vertical space between $i$-th and $(i + 1)$-th vertical lines(counted from left)
  - The number of line crossing the space per direction(the right to left or the left to right, which are always the same)
- - The number of vertices used(we have to use exactly $n - 1$ vertices until we reach the right end, excluding the start points at the top and the bottom)
+ - The number of vertices created(we have to create exactly $n - 1$ vertices until we reach the right end, excluding the start points at the top and the bottom)
  - The value of $b_i$.
- - Whether we have already passed the start point(3 in the example). (We can freely decide the start point)
+ - Whether we have already passed the start point(3 in the example). (We can freely decide the start point, so we can at any point flip this value from 0 to 1)
 
 A transition corresponds to advancing to the next right vertical space, passing a vertical line.
 In a transition we do the following, all of which we can do by multiplying some binomial coefficient:
 
  - "Close" zero or more pairs of right-to-left line and left-to-right line  
      The left-to-right lines and the right-to-left lines are always sequenced alternately from the top to bottom, and we can decide which one is at the top from the state "Whether we have already passed the start point"
-     We should also allow adding zero or more additional vertices.
+     We should create one or more vertices for this(=increase "The number of vertices created" in the dp key).
  - Add vertices to zero or more lines crossing the vertical line(we call this "knotting")
      We also allow transition to a different $b_i$ value, multiplying the number of ways to provide at least one vertices for every left-to-right/right-to-left(depending on the previous $b_i$) crossing lines.
  - "Open" zero or more pairs of left-to-right line and right-to-left line  
      Just like "closing", we can decide the number of places we can insert new pairs from "The number of line crossing" and "Whether we have already passed the start point" information.
-     Again, we should also allow adding zero or more additional vertices.
+     Again, we should create one or more vertices for this.
 
 When we decide to pass the starting point, we have to try $2 \times 2$ times for which direciton(left or right) it goes first from the starting point / from which direction it returns to the starting point at the bottom, and manipulate "the number of line crossing per direction" by -1, 0, or 1.
 
@@ -82,8 +82,12 @@ This DP assumes that we eventually go either left or right after departing the s
 For the corresponding $b$, any binary sequence is allowed, so we have to add $(n + 1) \times 2^n$ to the answer.  
 Precalculating the binomial coefficients, transitions from one DP state runs in $O(n^2)$ and the whole DP runs in $O(n^5)$. (ignoring the complexity of the multiprecision integer).  
 
-If we do not allow adding redundant vertices(that is, do not allow two vertices directly connected on the same vertical line) and
-instead multiply the number of ways to distribute the remaining vertices to the existing vertices(which is $n - 1$ minus the number of remaining vertices plus two because the starting points can also have redundant points) at the end of the DP,
+If we do not allow adding redundant vertices(that is, fobid two vertices directly connected on the same vertical line or in other words forbid same values in a row in $c$) and
+instead, after the DP finishes, multiply the number of ways to distribute the remaining vertices to the existing vertices(which is $n - 1$ minus the number of remaining vertices plus two because the starting points can also have redundant points) at the end of the DP,
 transitions from one state runs in $O(n)$ and the total complexity will be $O(n^4)$. (Again, assuming $O(1)$ multiprecision operations)
 
+Also, there is a DP key "the value of $b_i$", but it can be proved that regardless of this key the DP value is the same.
+Therefore this key can be removed, resulting in 2x speedup. (`main.cpp` implements this)
+
+With a little more observation, it is possible to get the answer for all $n' \le n$ with the same complexity, which is implemented in `main.cpp`.
 
