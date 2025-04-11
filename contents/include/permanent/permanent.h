@@ -1,4 +1,5 @@
 #include <vector>
+#include <queue>
 #include "comb.h"
 
 /*
@@ -229,7 +230,7 @@ template<typename T, typename left_func_t, typename right_func_t> T permanent_of
 	return res;
 }
 
-template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_dependent(int n, const val_func_t &val_func) {
+template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_dependent_general(int n, const val_func_t &val_func) {
 	constexpr int MOD = 3;
 	int n0 = (n + 2) / MOD;
 	int n1 = (n + 1) / MOD;
@@ -252,6 +253,66 @@ template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_depen
 		res.push_back(cur_res * cur_coef);
 	}
 	return res;
+}
+template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_dependent(int n, const val_func_t &val_func) {
+	constexpr int MOD = 3;
+	std::vector<bool> has_zero_row(MOD), has_zero_column(MOD);
+	for (int i = 0; i < MOD; i++) for (int j = 0; j < MOD; j++) if (val_func(i, j) == 0) has_zero_row[i] = has_zero_column[j] = true;
+	
+	auto all_one = [] (auto &a) { return std::accumulate(a.begin(), a.end(), 0) == (int) a.size(); };
+	if (!all_one(has_zero_row) || !all_one(has_zero_column)) return permanent_of_mod3_dependent_general<T>(n, val_func);
+	
+	std::vector<std::vector<std::pair<int, T> > > value_coef(MOD, std::vector<std::pair<int, T> >(MOD));
+	std::queue<std::pair<int, int> > que;
+	for (int i = 0; i < MOD; i++) {
+		for (int j = 0; j < MOD; j++) if (val_func(i, j)) {
+			value_coef[i][j] = {1, 0};
+			que.push({i, j});
+			break;
+		}
+		if (que.size()) break;
+	}
+	int ns[MOD] = {(n + 2) / MOD, (n + 1) / MOD, n / MOD};
+	while (que.size()) {
+		auto i = que.front();
+		auto cur_val = value_coef[i.first][i.second];
+		que.pop();
+		
+		auto get_only_index = [] (int n, const auto &f) {
+			int only = -1; // -1 : not yet assigned, -2 : multiple found
+			for (int i = 0; i < n; i++) if (f(i)) {
+				if (only == -1) only = i;
+				else only = -2;
+			}
+			return only < 0 ? -1 : only;
+		};
+		{
+			int only_nonzero = get_only_index(MOD, [&] (int j) { return j != i.first && val_func(j, i.second); });
+			if (only_nonzero >= 0 && value_coef[only_nonzero][i.second].first == 0) {
+				value_coef[only_nonzero][i.second] = {-cur_val.first, ns[i.second] - cur_val.second};
+				que.push({only_nonzero, i.second});
+			}
+		}
+		{
+			int only_nonzero = get_only_index(MOD, [&] (int j) { return j != i.second && val_func(i.first, j); });
+			if (only_nonzero >= 0 && value_coef[i.first][only_nonzero].first == 0) {
+				value_coef[i.first][only_nonzero] = {-cur_val.first, ns[i.first] - cur_val.second};
+				que.push({i.first, only_nonzero});
+			}
+		}
+	}
+	for (int j = 0; j < MOD; j++) for (int k = 0; k < MOD; k++) if (val_func(j, k) && !value_coef[j][k])
+		return permanent_of_mod3_dependent_general<T>(n, val_func);
+	
+	int min = 0;
+	int max = 1000000000;
+	for (int j = 0; j < MOD; j++) for (int k = 0; k < MOD; k++) if (val_func(j, k) && !value_coef[j][k])
+	
+	for (int j = 0; j < MOD; j++) {
+		for (int k = 0; k < MOD; k++) std::cerr << value_coef[j][k] << " ";
+		std::cerr << std::endl;
+	}
+	return std::vector<T>(n + 1);
 }
 template<typename T, typename val_func_t> std::vector<T> permanent_of_mod4_dependent(int n, const val_func_t &val_func) {
 	constexpr int MOD = 4;

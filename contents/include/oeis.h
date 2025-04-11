@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -10,40 +11,56 @@
 #include "utils.h"
 #include "types.h"
 
+template<typename task_t> struct ThreadPool {
+	std::deque<task_t> tasks;
+	ThreadPool () {}
+	ThreadPool (const std::vector<task_t> &tasks) : tasks(tasks.begin(), tasks.end()) {}
+	
+	void add_task(const task_t &task) { tasks.push_back(task); }
+	
+	std::mutex lock;
+	int num_thread_running;
+	template<typename process_func_t, typename check_limit_func_t> void thread_func(int thread_id,
+		const process_func_t &process_func, const check_limit_func_t &check_limit_func) {
+		
+		while (1) {
+			bool exit = false;
+			task_t next_task{};
+			{
+				std::lock_guard<std::mutex> locking(lock);
+				if (tasks.size()) {
+					next_task = tasks.front();
+					if (!check_limit_func(next_task, num_thread_running)) exit = true;
+					else tasks.pop_front();
+				} else exit = true;
+			}
+			if (exit) break;
+			process_func(next_task, thread_id);
+		}
+		{
+			std::lock_guard<std::mutex> locking(lock);
+			num_thread_running--;
+		}
+	}
+	
+	template<typename process_func_t, typename check_limit_func_t> void run(int thread_num,
+		const process_func_t &process_func, const check_limit_func_t &check_limit_func) {
+		
+		num_thread_running = thread_num;
+		std::vector<std::thread> threads;
+		for (int i = 0; i < thread_num; i++) threads.push_back(std::thread([&] (int thread_id) {
+			thread_func(thread_id, process_func, check_limit_func);
+		}, i));
+		for (auto &thread : threads) thread.join();
+	}
+	
+};
 
 struct OEISGenerator {
 	int thread_num = 1;
 	
 	std::vector<cpp_int> result;
-	std::mutex thread_lock;
-	std::deque<int> tasks;
-	int num_thread_running;
 	std::vector<std::pair<int, int> > thread_limits;
-	template<typename Sol> void thread_func(int thread_index, Sol *sol) {
-		(void) thread_index;
-		while (1) {
-			bool exit = false;
-			int next_n = -1;
-			{
-				std::lock_guard<std::mutex> locking(thread_lock);
-				if (tasks.size()) {
-					next_n = tasks.front();
-					for (auto limit : thread_limits) if (next_n >= limit.first && num_thread_running > limit.second) exit = true;
-					if (exit) num_thread_running--;
-					else tasks.pop_front();
-				} else exit = true;
-			}
-			if (exit) break;
-			auto res = sol->template calc<cpp_int>(next_n);
-			{
-				std::lock_guard<std::mutex> locking(thread_lock);
-				result[next_n] = res;
-				std::cerr << next_n << " " << res << std::endl;
-				// std::cerr << "Thread #" << thread_index << std::endl;
-			}
-		}
-		// std::cerr << "Thread #" << thread_index << " exit" << std::endl;
-	}
 	
 	struct general_tag {};
 	struct special_tag : general_tag {};
@@ -53,23 +70,45 @@ struct OEISGenerator {
 	template<typename Sol> Sol get_default_sol_(int, int, general_tag) { return Sol(); }
 	template<typename Sol> Sol get_default_sol(int n_min, int n_max) { return get_default_sol_<Sol>(n_min, n_max, special_tag()); }
 	
-	
-	template<typename Sol> auto run_multithread(int n_min, int n_max, Sol &sol) -> decltype(std::declval<Sol>().template calc<cpp_int>(0), void()) {
+	enum class RunType {
+		TERM_THREADED,
+		ALL,
+		CUSTOM_THREADED
+	};
+	template<typename Sol> auto run_multithread(int n_min, int n_max, Sol &sol) -> decltype(std::declval<Sol>().template calc<cpp_int>(0), RunType()) {
+		std::vector<int> tasks;
 		for (int n = n_min; n <= n_max; n++) tasks.push_back(n);
 		result.resize(n_max + 1);
 		
-		num_thread_running = thread_num;
-		std::vector<std::thread> threads;
-		for (int i = 0; i < thread_num; i++) threads.push_back(std::thread(&OEISGenerator::thread_func<Sol>, this, i, &sol));
-		for (auto &thread : threads) thread.join();
+		ThreadPool<int> pool(tasks);
+		pool.run(thread_num, [&] (int task, int) {
+			result[task] = sol.template calc<cpp_int>(task);
+			{
+				std::lock_guard<std::mutex> locking(pool.lock);
+				std::cerr << task << " " << result[task] << std::endl;
+			}
+		}, [&] (int task, int thread_running) {
+			for (auto limit : thread_limits) if (task >= limit.first && thread_running > limit.second) return false;
+			return true;
+		});
+		
+		return RunType::TERM_THREADED;
 	}
-	template<typename Sol> auto run_multithread(int n_min, int n_max, Sol &sol) -> decltype(std::declval<Sol>().template calc_all<cpp_int>(0), void()) {
+	template<typename Sol> auto run_multithread(int n_min, int n_max, Sol &sol) -> decltype(std::declval<Sol>().template calc_all<cpp_int>(0), RunType()) {
 		(void) n_min;
-		(void) n_max;
 		result = sol.template calc_all<cpp_int>(n_max);
+		return RunType::ALL;
 	}
-	template<typename Sol> auto is_solver_individual() -> decltype(std::declval<Sol>().template calc<cpp_int>(0), bool()) { return true; }
-	template<typename Sol> auto is_solver_individual() -> decltype(std::declval<Sol>().template calc_all<cpp_int>(0), bool()) { return false; }
+	template<typename Sol> auto run_multithread(int n_min, int n_max, Sol &sol) -> decltype(std::declval<Sol>().get_tasks(0, 0), RunType()) {
+		using task_t = typename std::remove_reference<decltype(sol.get_tasks(0, 0)[0])>::type;
+		ThreadPool<task_t> pool(sol.get_tasks(n_min, n_max));
+		pool.run(thread_num, [&] (const task_t &task, int) {
+			sol.calc_custom(task, pool.lock);
+		}, [] (int, int) { return true; });
+		auto tmp = sol.get_result(n_min, n_max);
+		result = std::vector<cpp_int>(tmp.begin(), tmp.end());
+		return RunType::CUSTOM_THREADED;
+	}
 	
 	// finalize function
 	template<typename Sol, typename int_<decltype(std::declval<Sol>().finalize(0, 0, std::declval<std::vector<cpp_int> &>()))>::type = 0> void finalize_(int n_min, int n_max, Sol &sol, special_tag) {
@@ -98,14 +137,14 @@ struct OEISGenerator {
 		
 		auto t0 = Timer::get();
 		Sol sol = get_default_sol<Sol>(opt.n_min, opt.n_max);
-		run_multithread(opt.n_min, opt.n_max, sol);
+		auto run_type = run_multithread(opt.n_min, opt.n_max, sol);
 		finalize<Sol>(opt.n_min, opt.n_max, sol);
 		auto t1 = Timer::get();
 		
 		std::string time_str = Timer::diff_str(t0, t1);
 		std::string date_str = Timer::get_date_str();
 		if (date_str.size()) date_str = date_str.substr(0, date_str.size() - 1); // ignore the last linebreak
-		std::string thread_str = std::to_string(is_solver_individual<Sol>() ? thread_num : 1) + " threads";
+		std::string thread_str = std::to_string(run_type != RunType::ALL ? thread_num : 1) + " threads";
 		if (thread_limits.size()) {
 			thread_str += " (limit";
 			for (auto limit : thread_limits) thread_str += " (" + std::to_string(limit.first) + ", " + std::to_string(limit.second) + ")";

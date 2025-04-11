@@ -12,6 +12,11 @@ std::string bin(u64 x, int n) {
 	return res;
 }
 
+
+template<typename A, typename B> std::ostream & operator << (std::ostream &stream, const std::pair<A, B> &a) {
+	stream << "(" << a.first << "," << a.second << ")";
+	return stream;
+}
 template<typename T> void write_(std::ostream &stream, T begin, T end) {
 	for (auto i = begin; i != end; i++) stream << (i != begin ? " " : "") << *i;
 }
@@ -31,9 +36,5 @@ template<typename T> std::ostream& operator << (std::ostream &stream, const std:
 	stream << "{";
 	write_(stream, a.begin(), a.end());
 	stream << "}";
-	return stream;
-}
-template<typename A, typename B> std::ostream & operator << (std::ostream &stream, const std::pair<A, B> &a) {
-	stream << "(" << a.first << "," << a.second << ")";
 	return stream;
 }
