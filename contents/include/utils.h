@@ -7,6 +7,7 @@
 #include <set>
 #include <utility>
 
+
 struct Random {
 	std::mt19937 rnd; // intentionally default-constructed for consistent results across executions
 	
@@ -54,3 +55,41 @@ struct Timer {
 		std::cerr << Timer::diff_ms(t0, t1) << " ms" << std::endl;
 	}
 };
+std::string timestamp_now() {
+		using namespace std::chrono;
+
+		auto now = system_clock::now();
+
+		auto now_time_t = system_clock::to_time_t(now);
+		std::tm tm = *std::localtime(&now_time_t);
+
+		auto duration_since_epoch = now.time_since_epoch();
+		auto milliseconds_part = duration_cast<milliseconds>(duration_since_epoch) % 1000;
+
+		std::ostringstream oss;
+		oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S");
+		oss << '.' << std::setfill('0') << std::setw(3) << milliseconds_part.count();
+
+		return oss.str();
+}
+
+template<typename T> std::string to_binary_str(T n, int d) {
+		std::string res;
+		for (int i = d - 1; i >= 0; i--) res.push_back('0' + (int)(n >> i & 1));
+		return res;
+}
+
+
+
+std::string put_SI_prefix(double x) {
+	double k = x / 1000.0; // Kilo
+	double m = k / 1000.0; // Mega
+	double g = m / 1000.0; // Giga
+	double t = g / 1000.0; // Tera
+	std::ostringstream stream;
+	if (k < 1000) stream << k << " K";
+	else if (m < 1000) stream << m << " M";
+	else if (g < 10000) stream << g << " G";
+	else stream << t << " T";
+	return stream.str();
+}
