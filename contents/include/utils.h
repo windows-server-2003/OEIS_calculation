@@ -3,9 +3,11 @@
 #include <chrono>
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include <vector>
 #include <set>
 #include <utility>
+#include <iomanip>
 
 
 struct Random {

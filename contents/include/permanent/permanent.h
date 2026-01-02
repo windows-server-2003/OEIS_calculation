@@ -2,6 +2,8 @@
 #include <queue>
 #include "comb.h"
 
+#include "permanent_multilinear_per_triangle.h"
+
 /*
 	Calculates permanents of all principal submatrices of the following matrix m[i][j] in O(N^2) :
 		m[i][j] = a(i)f(j) + b(i)
@@ -135,6 +137,9 @@ template<typename T, typename val_func_t> std::vector<T> permanents_of_diagonal_
 	return res;
 }
 
+
+
+
 // left_func / right_func : (n, row, column cnt, column sum) -> element sum
 // old function
 template<typename T, typename left_func_t, typename right_func_t> T permanent_of_half_linear_matrix2(int n, const left_func_t &left_func, const right_func_t &right_func) {
@@ -230,7 +235,7 @@ template<typename T, typename left_func_t, typename right_func_t> T permanent_of
 	return res;
 }
 
-template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_dependent_general(int n, const val_func_t &val_func) {
+template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_dependent(int n, const val_func_t &val_func) {
 	constexpr int MOD = 3;
 	int n0 = (n + 2) / MOD;
 	int n1 = (n + 1) / MOD;
@@ -254,6 +259,7 @@ template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_depen
 	}
 	return res;
 }
+/*
 template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_dependent(int n, const val_func_t &val_func) {
 	constexpr int MOD = 3;
 	std::vector<bool> has_zero_row(MOD), has_zero_column(MOD);
@@ -313,7 +319,7 @@ template<typename T, typename val_func_t> std::vector<T> permanent_of_mod3_depen
 		std::cerr << std::endl;
 	}
 	return std::vector<T>(n + 1);
-}
+}*/
 template<typename T, typename val_func_t> std::vector<T> permanent_of_mod4_dependent(int n, const val_func_t &val_func) {
 	constexpr int MOD = 4;
 	int n0 = (n + 3) / MOD;

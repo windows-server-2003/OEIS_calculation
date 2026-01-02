@@ -1,206 +1,322 @@
 #include "permanent.h"
 #include "comb.h"
+#include "prime.h"
+
+// function returning one
+#define CONSTANT(x) [] (int) { return x; }
+
+// used when passing two lambda expression
+#define PROD_WITH_CAPTURE(exp_of_i, exp_of_j, capture) [capture] (int i) { return exp_of_i; }, [capture] (int j) { return exp_of_j; }
+#define PROD(exp_of_i, exp_of_j) PROD_WITH_CAPTURE(exp_of_i, exp_of_j, )
+
 
 // A204233-
 
-/*
-	a(n) : permanent of matrix a[i][j] = n - abs(i - j) :
-		[n    n-1  n-2  n-3  ...  1]
-		[n-1  n    n-1  n-2  ...  2]
-		[n-2  n-1  n    n-1  ...  3]
-		[n-3  n-2  n-1  n    ...  4]
-		[|    |    |    | \       |]
-		[|    |    |    |    \    |]
-		[|    |    |    |       \ |]
-		[1    2    3    4    ...  n]
-*/
+// A307783(n) : permanent of matrix a[i][j] = n - abs(i - j) :
 struct A307783 {
 	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) { return col_cnt * (n - i) + col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { return col_cnt * (n + i) - col_sum; }
-		);
+		// one of the functions depends on n, so can't calc_all
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[n] (int i) { return n + i; }, CONSTANT(1), // n + i for upper
+				[n] (int ij) { return n - ij; },
+				[n] (int i) { return n - i; }, CONSTANT(1) // n - i for lower and diagonal
+			},
+			{
+				CONSTANT(1), [] (int j) { return -j; }, // -j for upper
+				[] (int ij) { return ij; },
+				CONSTANT(1), [] (int j) { return j; } // j for lower and diagonal
+			}
+		).back();
 	}
 };
 
-
-/*
-	a(n) : permanent of matrix a[i][j] = 1 + abs(i - j) :
-		[1    2    3    4    ...  n  ]
-		[2    1    2    3    ...  n-1]
-		[3    2    1    2    ...  n-2]
-		[4    3    2    1    ...  n-3]
-		[|    |    |    | \       |  ]
-		[|    |    |    |    \    |  ]
-		[|    |    |    |       \ |  ]
-		[n    n-1  n-2  n-3  ...  1  ]
-*/
+// A204235(n) : permanent of matrix a[i][j] = 1 + abs(i - j) :
 struct A204235 {
-	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (i + 1) - col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (1 - i) + col_sum; }
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return -i + 1; }, CONSTANT(1), // -i + 1 for upper
+				CONSTANT(1),
+				[] (int i) { return i + 1; }, CONSTANT(1) // i + 1 for lower
+			},
+			{
+				CONSTANT(1), [] (int j) { return j; }, // j for upper
+				CONSTANT(0),
+				CONSTANT(1), [] (int j) { return -j; } // -j for lower
+			}
 		);
 	}
 };
-/*
-	a(n) : permanent of matrix a[i][j] = abs(i - j)
-*/
+// A085807(n) : permanent of matrix a[i][j] = abs(i - j)
 struct A085807 {
-	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * i  - col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * -i + col_sum; }
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return -i; }, CONSTANT(1), // -i for upper
+				CONSTANT(0),
+				[] (int i) { return i; }, CONSTANT(1) // i for lower
+			},
+			{
+				CONSTANT(1), [] (int j) { return j; }, // j for upper
+				CONSTANT(0),
+				CONSTANT(1), [] (int j) { return -j; } // -j for lower
+			}
 		);
 	}
 };
 
 
 
-/*
-	a(n) : permanent of matrix a[i][j] = max(2i - j, 2j - i) + 1 :
-		[1    3    5    7    ...  2n-1]
-		[3    2    4    6    ...  2n-2]
-		[5    4    3    5    ...  2n-3]
-		[7    6    5    4    ...  2n-4]
-		[|    |    |    | \       |   ]
-		[|    |    |    |    \    |   ]
-		[|    |    |    |       \ |   ]
-		[2n-1 2n-2 2n-3 2n-4  ... n   ]
-*/
+// A204236(n) : permanent of matrix a[i][j] = max(2i - j, 2j - i) + 1 :
 struct A204236 {
-	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (2 * i + 1) - col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (1 - i) + 2 * col_sum; }
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return -i + 1; }, CONSTANT(1), // -i + 1 for upper
+				[] (int ij) { return 2*ij + 1; }, // 2i + 1 for lower and diagonal
+				[] (int i) { return 2*i + 1; }, CONSTANT(1)
+			},
+			{
+				CONSTANT(1), [] (int j) { return 2*j; }, // 2j for upper
+				[] (int ij) { return -ij; }, // -j for lower and diagonal
+				CONSTANT(1), [] (int j) { return -j; }
+			}
 		);
 	}
 };
 
 
 
-/*
-	a(n) : permanent of matrix a[i][j] = max(3i - j, 3j - i) + 2 :
-		[2    5    8    11   ...  3n-1]
-		[5    4    7    10   ...  3n-2]
-		[8    7    6    9    ...  3n-3]
-		[11   10   9    8    ...  3n-4]
-		[|    |    |    | \       |   ]
-		[|    |    |    |    \    |   ]
-		[|    |    |    |       \ |   ]
-		[3n-1 3n-2 3n-3 3n-4  ... 2n  ]
-*/
+// A204239(n) : permanent of matrix a[i][j] = max(3i - j, 3j - i) + 2 :
 struct A204239 {
-	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (3 * i + 2) - col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (2 - i) + 3 * col_sum; }
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return -2*i + 2; }, CONSTANT(1), // -2i + 2 for upper
+				[] (int ij) { return 3*ij + 2; }, // 3i + 2 for lower and diagonal
+				[] (int i) { return 3*i + 2; }, CONSTANT(1)
+			},
+			{
+				CONSTANT(1), [] (int j) { return 3*j; }, // 3j for upper
+				[] (int ij) { return -2*ij; }, // -2j for lower and diagonal
+				CONSTANT(1), [] (int j) { return -2*j; }
+			}
 		);
 	}
 };
 
 
-/*
-	a(n) : permanent of matrix a[i][j] = max(3i - 2j, 3j - 2i) + 1 :
-		[1    4    7    10   ...  3n-2]
-		[4    2    5    8    ...  3n-4]
-		[7    5    3    6    ...  3n-6]
-		[10   8    6    4    ...  3n-8]
-		[|    |    |    | \       |   ]
-		[|    |    |    |    \    |   ]
-		[|    |    |    |       \ |   ]
-		[3n-2 3n-4 3n-6 3n-8  ... n   ]
-*/
+// A204241(n) : permanent of matrix a[i][j] = max(3i - 2j, 3j - 2i) + 1 :
 struct A204241 {
-	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (3 * i + 1) - 2 * col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (1 - 2 * i) + 3 * col_sum; }
-		);
-	}
-};
-
-
-/*
-	a(n) : permanent of matrix a[i][j] = 2 + i + j :
-		[2    3    4    5    ...  n+1]
-		[3    4    5    6    ...  n+2]
-		[4    5    6    7    ...  n+3]
-		[5    6    7    8    ...  n+4]
-		[|    |    |    | \       |  ]
-		[|    |    |    |    \    |  ]
-		[|    |    |    |       \ |  ]
-		[n+1  n+2  n+3  n+4   ... 2n ]
-*/
-struct A204249 {
 	template<typename T> std::vector<T> calc_all(int n) {
-		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
-			[] (int i) -> std::pair<int, int> { return {1, 2 + i}; },
-			[] (int j) { return j; }
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return -2*i + 1; }, CONSTANT(1), // -2i + 1 for upper
+				[] (int ij) { return 3*ij + 1; }, // 3i + 1 for lower and diagonal
+				[] (int i) { return 3*i + 1; }, CONSTANT(1)
+			},
+			{
+				CONSTANT(1), [] (int j) { return 3*j; }, // 3j for upper
+				[] (int ij) { return -2*ij; }, // -2j for lower and diagonal
+				CONSTANT(1), [] (int j) { return -2*j; }
+			}
 		);
 	}
 };
 
 
-/*
-	a(n) : permanent of matrix a[i][j] = i * j + 2i + 2j + 1 :
-		[1    3    5    7    ...  2n-1]
-		[3    6    9    12   ...  3n  ]
-		[5    9    13   17   ...  4n+1]
-		[7    12   17   22   ...  5n+2]
-		[|    |    |    | \       |   ]
-		[|    |    |    |    \    |   ]
-		[|    |    |    |       \ |   ]
-		[2n-1 3n   4n+1 5n+2  ... n^2+2n-2]
-*/
-struct A204251 {
-	template<typename T> std::vector<T> calc_all(int n) {
-		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
-			[] (int i) -> std::pair<int, int> { return {(2 + i), 2*i + 1}; },
-			[] (int j) { return j; }
-		);
-	}
-};
 
-/*
-	a(n) : permanent of matrix a[i][j] = 1 + (i - j + n) % n
-		[1    2    3    4    ...  n  ]
-		[n    1    2    3    ...  n-1]
-		[n-1  n    1    2    ...  n-2]
-		[n-2  n-1  n    1    ...  n-3]
-		[|    |    |    | \       |  ]
-		[|    |    |    |    \    |  ]
-		[|    |    |    |       \ |  ]
-		[2    3    4    5    ...  1  ]
-*/
+// A085719(n) : permanent of matrix a[i][j] = 1 + (i + j) % n
+//    equivalent to the case when a[i][j] = 1 + (i - j + n) % n (reversed columns)
 struct A085719 {
 	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) {           return col_cnt * (n + 1 - i) + col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (1 - i) + col_sum; }
+		// one of the functions depends on n, so can't calc_all
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[n] (int i) { return 1 + i + n; }, CONSTANT(1), // 1 + i + n for upper
+				[] (int ij) { return 1 + ij; },
+				[] (int i) { return 1 + i; }, CONSTANT(1), // 1 + i for lower and diagonal
+			},
+			{
+				CONSTANT(1), [] (int j) { return -j; }, // -j everywhere
+				[] (int ij) { return -ij; },
+				CONSTANT(1), [] (int j) { return -j; }
+			}
+		).back();
+	}
+};
+
+
+// A086759(n) : (equivalent to) the permanent of matrix a[i][j] = (i - j + n) % n
+struct A086759 {
+	template<typename T> T calc(int n) {
+		// one of the functions depends on n, so can't calc_all
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[n] (int i) { return i + n; }, CONSTANT(1), // i + n for upper
+				[] (int ij) { return ij; },
+				[] (int i) { return i; }, CONSTANT(1), // i for lower and diagonal
+			},
+			{
+				CONSTANT(1), [] (int j) { return -j; }, // -j everywhere
+				[] (int ij) { return -ij; },
+				CONSTANT(1), [] (int j) { return -j; }
+			}
+		).back();
+	}
+};
+
+
+/*
+	a(n) : permanent of matrix a[i][j] = (1 + j - i) if j >= i, (n + i - j) if j < i  :
+		[1    2    3    4  ...  n  ]
+		[n+1  1    2    3  ...  n-1]
+		[n+2  n+1  1    2  ...  n-2]
+		[n+3  n+2  n+1  1    ...n-3]
+		[|    |    |    | \     |  ]
+		[|    |    |    |   \   |  ]
+		[|    |    |    |     \ |  ]
+		[2n-1 2n-2 2n-3 2n-4    1  ]
+*/
+struct A322909 {
+	template<typename T> T calc(int n) {
+		// one of the functions depends on n, so can't calc_all
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return 1 - i; }, CONSTANT(1), // 1 - i for upper and diagonal
+				[] (int ij) { return 1 - ij; },
+				[n] (int i) { return n + i; }, CONSTANT(1), // n + i for lower
+			},
+			{
+				CONSTANT(1), [] (int j) { return j; }, // j for upper and diagonal
+				[] (int ij) { return ij; },
+				CONSTANT(1), [] (int j) { return -j; } // -j for lower
+			}
+		).back();
+	}
+};
+/*
+	a(n) : permanent of (transpose of) the matrix a[i][j] = (2 * n - 1 - (j - i)) if j >= i, (n - (i - j)) if j < i  :
+		[2n-1 2n-2 2n-3 2n-4 ... n  ]
+		[n-1  2n-1 2n-2 2n-3 ... n+1]
+		[n-2  n-1  2n-1 2n-2 ... n+2]
+		[n-3  n-2  n-1  2n-1 ... n+3]
+		[|    |    |    | \      |  ]
+		[|    |    |    |   \    |  ]
+		[|    |    |    |     \  |  ]
+		[1    2    3    4       2n-1]
+*/
+struct A323255 {
+	template<typename T> T calc(int n) {
+		// one of the functions depends on n, so can't calc_all
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[n] (int i) { return 2 * n - 1 + i; }, CONSTANT(1), // 2n - 1 + i for upper and diagonal
+				[n] (int ij) { return 2 * n - 1 + ij; },
+				[n] (int i) { return n - i; }, CONSTANT(1), // n - i for lower
+			},
+			{
+				CONSTANT(1), [] (int j) { return -j; }, // -j for upper and diagonal
+				[] (int ij) { return -ij; },
+				CONSTANT(1), [] (int j) { return j; } // j for lower
+			}
+		).back();
+	}
+};
+
+// A204262(n): permanent of matrix a[i][j] = 1 + min(i, j)
+struct A204262 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return i + 1; }, CONSTANT(1),
+				[] (int ij) { return ij + 1; },
+				CONSTANT(1), [] (int j) { return j + 1; }
+			}
 		);
 	}
 };
 
-/*
-	a(n) : (equivalent to) the permanent of matrix a[i][j] = (i - j + n) % n
-		[0    1    2    3    ...  n-1]
-		[n-1  0    1    2    ...  n-2]
-		[n-2  n-1  0    1    ...  n-3]
-		[n-3  n-2  n-1  0    ...  n-4]
-		[|    |    |    | \       |  ]
-		[|    |    |    |    \    |  ]
-		[|    |    |    |       \ |  ]
-		[1    2    3    4    ...  0  ]
-*/
-struct A086759 {
-	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) {           return col_cnt * (n - i) + col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * -i + col_sum; }
+// A204264(n): permanent of matrix a[i][j] = 1 + max(i, j)
+struct A204264 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_multilinear_per_triangular<T>(n, 
+			{
+				CONSTANT(1), [] (int j) { return j + 1; },
+				[] (int ij) { return ij + 1; },
+				[] (int i) { return i + 1; }, CONSTANT(1)
+			}
 		);
 	}
 };
+
+// A204234(n): permanent of matrix a[i][j] = (i + j + 2) * (1 + min(i, j))
+struct A204234 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return (T) (1 + i) * (1 + i); }, CONSTANT(1), // (1 + i)^2 for upper
+				[] (int ij) { return (T) (1 + ij) * (1 + ij); },
+				CONSTANT(1), [] (int j) { return (1 + j) * (1 + j); } // (1 + j)^2 for lower
+			},
+			{
+				[] (int i) { return (T) (1 + i); }, // (1 + i)(1 + j) everywhere
+				[] (int j) { return (T) (1 + j); },
+				[] (int ij) { return (1 + ij) * (1 + ij); },
+				[] (int i) { return (T) (1 + i); },
+				[] (int j) { return (T) (1 + j); }
+			}
+		);
+	}
+};
+
+// A278858(n): permanent of matrix a[i][j] = |(i+1)^2 - (j+1)^2|
+struct A278858 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return -(T) (1 + i) * (1 + i); }, CONSTANT(1), // - (1 + i)^2 for upper
+				[] (int ij) { return -(T) (1 + ij) * (1 + ij); },
+				[] (int i) { return (T) (1 + i) * (1 + i); }, CONSTANT(1), // (1 + i)^2 for lower
+			},
+			{
+				CONSTANT(1), [] (int j) { return (T) (1 + j) * (1 + j); }, // (1 + j)^2 for upper
+				[] (int ij) { return (T) (1 + ij) * (1 + ij); },
+				CONSTANT(1), [] (int j) { return -(T) (1 + j) * (1 + j); }, // -(1 + j)^2 for upper
+			}
+		);
+	}
+};
+
+// A347768(n): permanent of matrix a[i][j] = |i - j + 1|
+struct A347768 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_sum_of_multilinear_per_triangular<T>(n, 
+			{
+				[] (int i) { return -i - 1; }, CONSTANT(1), // -i - 1 for upper
+				[] (int ij) { return ij + 1; }, // i + 1 for diagonal and lower
+				[] (int i) { return i + 1; }, CONSTANT(1),
+			},
+			{
+				CONSTANT(1), [] (int j) { return j; }, // j for upper
+				[] (int ij) { return -ij; }, // -j for diagonal and lower
+				CONSTANT(1), [] (int j) { return -j; }, // -(1 + j)^2 for upper
+			}
+		);
+	}
+};
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -353,10 +469,148 @@ struct A204448 {
 		return permanent_of_mod4_dependent<T>(n, [] (int i, int j) { return (i + j) % 4 != 0; });
 	}
 };
+struct A204546 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanent_of_mod4_dependent<T>(n, [] (int i, int j) { return (i + j) % 4 == 0 || (i + j) % 4 == 3; });
+	}
+};
+struct A204548 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanent_of_mod4_dependent<T>(n, [] (int i, int j) { return (i + j) % 4 >= 2; });
+	}
+};
+struct A204550 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanent_of_mod4_dependent<T>(n, [] (int i, int j) { return (i + j) % 4 == 1 || (i + j) % 4 == 2; });
+	}
+};
 
+
+
+
+
+
+
+
+
+// ----- k = 1 -----
+// A203264(n) : permanent of matrix a[i][j] = (i / 2 + 1) * (j + 1)
+struct A203264 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		std::vector<T> res = { 1 };
+		T factorial = 1;
+		T prod_half = 1;
+		for (int i = 1; i <= n; i++) {
+			factorial *= i;
+			prod_half *= (i + 1) / 2;
+			res.push_back(factorial * factorial * prod_half);
+		}
+		return res;
+	}
+};
+// A330087(n) : permanent of matrix a[i][j] = (i+1) * prime(j)
+struct A330087 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		auto primes = get_first_n_primes<int>(n);
+		std::vector<T> res = { 1 };
+		T factorial = 1;
+		T prod_half = 1;
+		for (int i = 1; i <= n; i++) {
+			factorial *= i;
+			prod_half *= primes[i - 1];
+			res.push_back(factorial * factorial * prod_half);
+		}
+		return res;
+	}
+};
+
+
+
+// ----- k = 2 -----
+/*
+	a(n) : permanent of matrix a[i][j] = 2*i + j + 3
+*/
+struct A278927 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
+			[] (int i) -> std::pair<int, int> { return {1, 2 * i + 3}; },
+			[] (int j) { return j; }
+		);
+	}
+};
+/* a(n) : permanent of 2nx2n matrix a[i][j] = i - j */
+struct A346934 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		auto tmp = permanents_of_rowwise_linear_n_independent_matrix<T>(2 * n,
+			[] (int i) -> std::pair<int, int> { return {-1, i}; },
+			[] (int j) { return j; }
+		);
+		std::vector<T> res;
+		for (int i = 0; i <= 2 * n; i += 2) res.push_back(tmp[i]);
+		return res;
+	}
+};
+
+// A204248(n) : permanent of matrix a[i][j] = 1 + i + j :
+struct A204248 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
+			[] (int i) -> std::pair<int, int> { return {1, 1 + i}; },
+			[] (int j) { return j; }
+		);
+	}
+};
+
+// A204249(n) : permanent of matrix a[i][j] = 2 + i + j :
+struct A204249 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
+			[] (int i) -> std::pair<int, int> { return {1, 2 + i}; },
+			[] (int j) { return j; }
+		);
+	}
+};
+
+
+// A204251(n) : permanent of matrix a[i][j] = i * j + 2i + 2j + 1 :
+struct A204251 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
+			[] (int i) -> std::pair<int, int> { return {(2 + i), 2*i + 1}; },
+			[] (int j) { return j; }
+		);
+	}
+};
+/* A278847(n) : permanent of matrix a[i][j] = (i + 1)^2 + (j + 1)^2 */
+struct A278847 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
+			[] (int i) -> std::pair<int, int> { return {1, (i + 1) * (i + 1)}; },
+			[] (int j) { return (j + 1) * (j + 1); }
+		);
+	}
+};
+/* A278925(n) : permanent of matrix a[i][j] = (i + 1)^3 + (j + 1)^3 */
+struct A278925 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
+			[] (int i) -> std::pair<int, s64> { return {1, (s64) (i + 1) * (i + 1) * (i + 1)}; },
+			[] (int j) { return (s64) (j + 1) * (j + 1) * (j + 1); }
+		);
+	}
+};
+/* A278926(n) : permanent of matrix a[i][j] = (i + 1)^4 + (j + 1)^4 */
+struct A278926 {
+	template<typename T> std::vector<T> calc_all(int n) {
+		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
+			[] (int i) -> std::pair<int, s64> { return {1, (s64) (i + 1) * (i + 1) * (i + 1) * (i + 1)}; },
+			[] (int j) { return (s64) (j + 1) * (j + 1) * (j + 1) * (j + 1); }
+		);
+	}
+};
 
 /*
-	a(n) : permanent of matrix a[i][j] = (i * n + j + 1) if i % 2 == 0, ((i + 1) * n - j) if i % 2 == 1
+	A322277(n) : permanent of matrix a[i][j] = (i * n + j + 1) if i % 2 == 0, ((i + 1) * n - j) if i % 2 == 1
 		[1    2    3    4    ...  n   ]
 		[2n   2n-1 2n-2 2n-3 ...  n+1 ]
 		[2n+1 2n+2 2n+3 2n+4 ...  3n  ]
@@ -376,46 +630,13 @@ struct A322277 {
 		);
 	}
 };
-/* a(n) : permanent of matrix a[i][j] = (i + 1)^2 + (j + 1)^2 */
-struct A278847 {
-	template<typename T> std::vector<T> calc_all(int n) {
-		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
-			[] (int i) -> std::pair<int, int> { return {1, (i + 1) * (i + 1)}; },
-			[] (int j) { return (j + 1) * (j + 1); }
-		);
-	}
-};
-/* a(n) : permanent of matrix a[i][j] = (i + 1)^3 + (j + 1)^3 */
-struct A278925 {
-	template<typename T> std::vector<T> calc_all(int n) {
-		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
-			[] (int i) -> std::pair<int, s64> { return {1, (s64) (i + 1) * (i + 1) * (i + 1)}; },
-			[] (int j) { return (s64) (j + 1) * (j + 1) * (j + 1); }
-		);
-	}
-};
-/* a(n) : permanent of matrix a[i][j] = (i + 1)^4 + (j + 1)^4 */
-struct A278926 {
-	template<typename T> std::vector<T> calc_all(int n) {
-		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
-			[] (int i) -> std::pair<int, s64> { return {1, (s64) (i + 1) * (i + 1) * (i + 1) * (i + 1)}; },
-			[] (int j) { return (s64) (j + 1) * (j + 1) * (j + 1) * (j + 1); }
-		);
-	}
-};
-/* a(n) : permanent of 2nx2n matrix a[i][j] = i - j */
-struct A346934 {
-	template<typename T> std::vector<T> calc_all(int n) {
-		auto tmp = permanents_of_rowwise_linear_n_independent_matrix<T>(2 * n,
-			[] (int i) -> std::pair<int, int> { return {-1, i}; },
-			[] (int j) { return j; }
-		);
-		std::vector<T> res;
-		for (int i = 0; i <= 2 * n; i += 2) res.push_back(tmp[i]);
-		return res;
-	}
-};
-/* a(n) : permanent of 2nx2n matrix a[i][j] = (i + j)^2 */
+
+
+
+
+
+// ----- k = 3 -----
+/* A278845(n) : permanent of 2nx2n matrix a[i][j] = (i + j + 2)^2 */
 struct A278845 {
 	template<typename T> std::vector<T> calc_all(int n) {
 		return permanents_of_rowwise_quadratic_n_independent_matrix<T>(n,
@@ -424,7 +645,7 @@ struct A278845 {
 		);
 	}
 };
-/* a(n) : permanent of 2nx2n matrix a[i][j] = (i - j)^2 */
+/* A278857(n) : permanent of 2nx2n matrix a[i][j] = (i - j)^2 */
 struct A278857 {
 	template<typename T> std::vector<T> calc_all(int n) {
 		return permanents_of_rowwise_quadratic_n_independent_matrix<T>(n,
@@ -435,34 +656,8 @@ struct A278857 {
 };
 
 
-/*
-	a(n) : permanent of matrix a[i][j] = 2*i + j + 3
-*/
-struct A278927 {
-	template<typename T> std::vector<T> calc_all(int n) {
-		return permanents_of_rowwise_linear_n_independent_matrix<T>(n,
-			[] (int i) -> std::pair<int, int> { return {1, 2 * i + 3}; },
-			[] (int j) { return j; }
-		);
-	}
-};
 
-/*
-	a(n) : permanent of matrix a[i][j] = (i / 2 + 1) * (j + 1)
-*/
-struct A203264 {
-	template<typename T> std::vector<T> calc_all(int n) {
-		std::vector<T> res = { 1 };
-		T factorial = 1;
-		T prod_half = 1;
-		for (int i = 1; i <= n; i++) {
-			factorial *= i;
-			prod_half *= (i + 1) / 2;
-			res.push_back(factorial * factorial * prod_half);
-		}
-		return res;
-	}
-};
+
 
 
 // Diagonal/1 matrix
@@ -484,47 +679,6 @@ struct A303001 {
 		return permanents_of_diagonal_plus1_matrix<cpp_int>(n, [] (int i) { return (i + 1) * (i + 2) / 2; });
 	}
 };
-
-
-/*
-	a(n) : permanent of matrix a[i][j] = (1 + j - i) if j >= i, (n + i - j) if j < i  :
-		[1    2    3    4  ...  n  ]
-		[n+1  1    2    3  ...  n-1]
-		[n+2  n+1  1    2  ...  n-2]
-		[n+3  n+2  n+1  1    ...n-3]
-		[|    |    |    | \     |  ]
-		[|    |    |    |   \   |  ]
-		[|    |    |    |     \ |  ]
-		[2n-1 2n-2 2n-3 2n-4    1  ]
-*/
-struct A322909 {
-	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) {           return col_cnt * (n + i) - col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { (void) n; return col_cnt * (1 - i) + col_sum; }
-		);
-	}
-};
-/*
-	a(n) : permanent of (transpose of) the matrix a[i][j] = (2 * n - 1 - (j - i)) if j >= i, (n - (i - j)) if j < i  :
-		[2n-1 2n-2 2n-3 2n-4 ... n  ]
-		[n-1  2n-1 2n-2 2n-3 ... n+1]
-		[n-2  n-1  2n-1 2n-2 ... n+2]
-		[n-3  n-2  n-1  2n-1 ... n+3]
-		[|    |    |    | \      |  ]
-		[|    |    |    |   \    |  ]
-		[|    |    |    |     \  |  ]
-		[1    2    3    4       2n-1]
-*/
-struct A323255 {
-	template<typename T> T calc(int n) {
-		return permanent_of_half_linear_matrix<T>(n,
-			[] (int n, int i, int col_cnt, int col_sum) { return col_cnt * (n - i) + col_sum; },
-			[] (int n, int i, int col_cnt, int col_sum) { return col_cnt * (2 * n - 1 + i) - col_sum; }
-		);
-	}
-};
-
 
 
 // A204431 : wrong 
