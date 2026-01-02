@@ -24,7 +24,14 @@ template<typename base_type, typename mult_type, base_type mod> struct mint {
 	mint  operator * (const mint &rhs) const { return mint(*this) *= rhs; }
 	mint  operator << (int x) const { return mint(*this) <<= x; }
 	friend std::ostream & operator << (std::ostream &stream, const mint &rhs) { stream << rhs.val; return stream; }
-	explicit operator bool () { return val; }
+	friend std::istream & operator >> (std::istream &stream, mint &rhs) {
+		base_type val;
+		stream >> val;
+		rhs = val;
+		return stream;
+	}
+	explicit operator bool () const { return val; }
+	explicit operator base_t () const { return val; }
 };
 
 u64 mod_inv_(u64 x, u64 mod) {

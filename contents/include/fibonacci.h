@@ -5,7 +5,7 @@
 #include <vector>
 
 template<typename T> std::vector<T> fibonacci_sequence(int n) {
-	assert(n >= 1);
+	if (n == 0) return { 1 };
 	std::vector<T> res(n + 1);
 	res[0] = 1;
 	res[1] = 2;
@@ -13,7 +13,7 @@ template<typename T> std::vector<T> fibonacci_sequence(int n) {
 	return res;
 }
 template<typename T> std::vector<T> circular_fibonacci_sequence(int n, const std::vector<T> &fib) {
-	assert(n >= 1);
+	if (n == 0) return { 0 };
 	if (n == 1) return {1, 1};
 	std::vector<T> res{1, 1, 3};
 	for (int i = 3; i <= n; i++) res.push_back(fib[i - 1] + fib[i - 3]);
@@ -68,14 +68,31 @@ template<typename T, typename Func0, typename Func1> void for_each_fibonacci_mod
 
 
 template<typename T, typename Func> void for_each_circular_fibonacci(int n, const Func &func) {
-	if (n <= 1) {
+	if (n <= 2) {
 		func(0, 0);
+		if (n == 2) func(1, 1), func(2, 2);
 		return;
 	}
 	for_each_fibonacci<T>(n - 1, func);
 	size_t offset = fibonacci_sequence<size_t>(n - 1).back();
 	T set_bit = T(1) << (n - 1);
 	for_each_fibonacci<T>(n - 3, [&] (size_t i, T t) { func(offset + i, set_bit | t << 1); });
+}
+
+template<typename T> T get_bitpattern_from_fibonacci_index(size_t ind) {
+	int len = sizeof(T) * 8;
+	auto fib = fibonacci_sequence<T>(len);
+	T res = 0;
+	for (int i = len - 1; i >= 0; i--) if (ind >= fib[i]) {
+		ind -= fib[i];
+		res |= T(1) << i;
+	}
+	return res;
+}
+template<typename T> T get_bitpattern_from_circular_fibonacci_index(size_t ind, int n) {
+	auto fib = fibonacci_sequence<T>(n);
+	if (ind < fib[n - 1]) return get_bitpattern_from_fibonacci_index<T>(ind);
+	else return T(1) << (n - 1) | get_bitpattern_from_fibonacci_index<T>(ind - fib[n - 1]) << 1;
 }
 
 template<int K, int L> struct fibonacci_decoder {
