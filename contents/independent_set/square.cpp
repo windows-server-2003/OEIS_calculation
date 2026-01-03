@@ -219,7 +219,7 @@ std::vector<cpp_int> calc(size_t n, size_t M, int n_threads,
 				
 				log_lock.lock();
 				log_file << "[" << timestamp_now() << "]: Finish (n,M)=(" << n << "," << M << ") mod_id=" << i
-					<< " mod=" << mod << " time=" << time_s << " s(" << put_SI_prefix(ops) << " OP/s)" << std::endl;
+					<< " mod=" << mod << " time=" << time_s << " s (" << put_SI_prefix(ops) << "OP/s)" << std::endl;
 				log_lock.unlock();
 			} else incomplete = true; // there are mods for which the results the process doesn't know
 		}
@@ -293,7 +293,7 @@ int main(int argc, char **argv) {
 	int M; // max m
 	int T; // number of threads
 	if (p == 0) {
-		std::cout << "Independent set in P_n x P_m calculator(backend=" << backend_name << std::endl;
+		std::cout << "Independent set in P_n x P_m calculator(backend=" << backend_name << ")" << std::endl;
 		std::cout << "Enter n M T (n, max m, # of threads, respectively)" << std::endl;
 		std::cout << "Example: 24 30 2" << std::endl;
 		std::cout << "Note that n <= 45 is recommended since the calculation time and the memory consumption is exponential to n." << std::endl;
