@@ -15,6 +15,12 @@ std::vector<bool> get_is_prime_until_nth_prime(size_t n) {
 	return get_is_prime(max);
 }
 
+template<typename T> std::vector<T> get_primes_upto(T max) {
+	auto is_prime = get_is_prime(max);
+	std::vector<T> res;
+	for (size_t i = 0; i < is_prime.size(); i++) if (is_prime[i]) res.push_back(i);
+	return res;
+}
 template<typename T> std::vector<T> get_first_n_primes(size_t n) {
 	auto is_prime = get_is_prime_until_nth_prime(n);
 	std::vector<T> res;
